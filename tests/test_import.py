@@ -4,14 +4,13 @@ test_import.py
 
 Make sure trimesh is importing right.
 """
-
 import unittest
 
 
 class ImportTests(unittest.TestCase):
+
     def test_path(self):
         import os
-
         # make sure trimesh imports without any environment variables
         # this was failing on `PATH` at some point
         keys = list(os.environ.keys())
@@ -28,5 +27,5 @@ class ImportTests(unittest.TestCase):
         assert trimesh.creation.icosphere().is_volume
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     unittest.main()

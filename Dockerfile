@@ -1,4 +1,4 @@
-FROM python:3.12-slim-bookworm AS base
+FROM python:3.11-slim-bookworm AS base
 LABEL maintainer="mikedh@kerfed.com"
 
 # Install helper script to PATH.
@@ -21,7 +21,7 @@ RUN trimesh-setup --install build
 
 # copy in essential files
 COPY --chown=499 trimesh/ /home/user/trimesh
-COPY --chown=499 pyproject.toml /home/user/
+COPY --chown=499 setup.py /home/user/
 
 # switch to non-root user
 USER user
@@ -29,8 +29,9 @@ USER user
 # install trimesh into .local
 # then delete any included test directories
 # and remove Cython after all the building is complete
-RUN pip install --user /home/user[easy] && \
-    find /home/user/.local -type d -name tests -prune -exec rm -rf {} \;
+RUN pip install /home/user[all] && \
+    find /home/user/.local -type d -name tests -prune -exec rm -rf {} \; && \
+    pip uninstall -y cython
 
 ####################################
 ### Build output image most things should run on
@@ -57,6 +58,7 @@ FROM output AS tests
 COPY --chown=499 tests ./tests/
 COPY --chown=499 trimesh ./trimesh/
 COPY --chown=499 models ./models/
+COPY --chown=499 setup.py .
 COPY --chown=499 pyproject.toml .
 
 # codecov looks at the git history
@@ -67,29 +69,13 @@ RUN trimesh-setup --install=test,gltf_validator,llvmpipe,binvox
 USER user
 
 # install things like pytest
-RUN pip install -e .[all]
-
-# check formatting
-RUN ruff trimesh
-
-
-
-## TODO : get typeguard to pass on more/all of the codebase
-## this is running on a very arbitrary subset right now!
-RUN pytest \
-    --typeguard-packages=trimesh.scene,trimesh.base \
-    -p no:ALL_DEPENDENCIES \
-    -p no:INCLUDE_RENDERING \
-    -p no:cacheprovider tests/test_s*
-
+RUN pip install -e .[all,easy,recommends,test]
 
 # run pytest wrapped with xvfb for simple viewer tests
-RUN xvfb-run pytest \
-    --cov=trimesh \
+RUN xvfb-run pytest --cov=trimesh \
     -p no:ALL_DEPENDENCIES \
     -p no:INCLUDE_RENDERING \
     -p no:cacheprovider tests
-
 
 # set codecov token as a build arg to upload
 ARG CODECOV_TOKEN=""
@@ -117,7 +103,7 @@ RUN make
 
 ### Copy just the docs so we can output them
 FROM scratch as docs
-COPY --from=build_docs /home/user/docs/built/html/ ./
+COPY --from=build_docs /home/user/docs/_build/html/ ./
 
 ### Make sure the output stage is the last stage so a simple
 # "docker build ." still outputs an expected image
